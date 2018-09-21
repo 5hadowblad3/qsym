@@ -1,3 +1,7 @@
+# Eclipse?
+.cproject
+.project
+
 # pin
 pin.log
 pintool.log
