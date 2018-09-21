@@ -1,7 +1,6 @@
 #include <set>
 #include <byteswap.h>
 #include "solver.h"
-#include "z3plus.h"
 
 namespace qsym {
 
@@ -10,7 +9,6 @@ namespace {
 const uint64_t kUsToS = 1000000;
 const int kSessionIdLength = 32;
 const unsigned kSolverTimeout = 10000; // 10 seconds
-const bool useOptSolver = false;    // decide if to use opt for optimistic solving
 
 std::string toString6digit(INT32 val) {
   char buf[6 + 1]; // ndigit + 1
@@ -207,19 +205,12 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
     z3::expr &z3_expr = e->toZ3Expr();
 
     // TODO: add unbound case
-    if (useOptSolver) {
-        // TODO:
-        // getMinValue and getMaxValue will save all solutions
-        // but get_abstract_interval_as_expr only finds min_expr and max_expr
-        // we should decide if to use it or not
-
-    } else {
-        z3::expr min_expr = getMinValue(z3_expr);
-        z3::expr max_expr = getMaxValue(z3_expr);
-        solveOne(z3_expr == min_expr);
-        solveOne(z3_expr == max_expr);
-    }
+    z3::expr min_expr = getMinValue(z3_expr);
+    z3::expr max_expr = getMaxValue(z3_expr);
+    solveOne(z3_expr == min_expr);
+    solveOne(z3_expr == max_expr);
   }
+
   addValue(e, addr);
 }
 
