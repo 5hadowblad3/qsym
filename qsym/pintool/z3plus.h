@@ -31,6 +31,7 @@ using namespace z3;
  *      get the result as a z3 expr
  *  - do_constant_propagation(exp)
  *      use cp to simplify exp
+ *  - check_model
  */
 
 bool get_expr_vars(expr& exp, expr_vector& vars) {
@@ -118,7 +119,7 @@ void get_k_models(z3::expr& exp, int k) {
     }
 }
 
-std::pair<int, int> get_abstract_interval(expr& pre_cond, expr& query, int timeout=3000) {
+std::pair<int, int> get_abstract_interval(expr& pre_cond, expr& query, int timeout) {
     // TODO: should we return an Expr or a domain value(like [a, b])
     z3::context &c = pre_cond.ctx();
     std::pair<int, int> ret(INT_MIN, INT_MAX);
@@ -156,7 +157,7 @@ std::pair<int, int> get_abstract_interval(expr& pre_cond, expr& query, int timeo
     return ret;
 }
 
-void get_abstract_interval_as_expr(expr& pre_cond, expr& query, expr_vector& res, int timeout=3000) {
+void get_abstract_interval_as_expr(expr& pre_cond, expr& query, expr_vector& res, int timeout) {
     context &Ctx = pre_cond.ctx();
     params Param(Ctx);
     Param.set("priority", Ctx.str_symbol("pareto"));
@@ -193,5 +194,47 @@ expr do_constant_propagation(expr& to_simp) {
     tactic cp = tactic(to_simp.ctx(), "propagate-values");
     return cp.apply(gg)[0].as_expr();
 }
+
+
+bool check_model_misc(expr& exp, context &ctx, vector<func_decl>& decls, vector<int>& candidate) {
+    model cur_model(ctx);
+
+    // initialize the model with candidate
+    for (unsigned i = 0; i < decls.size(); i++) {
+        // TODO: decide the bit-vector size
+        expr var_i = ctx.bv_val(candidate[i], 32);
+        cur_model.add_const_interp(decls[i], var_i);
+    }
+    // check if exp is satisfied by cur_model
+    if (cur_model.eval(exp).is_true()) { return true; }
+    else { return false; }
+}
+
+bool check_model_with_mutate(expr& exp) {
+    expr_vector vars(exp.ctx());
+
+    // get vars
+    get_expr_vars(exp, vars);
+    unsigned var_num = vars.size();
+
+    // get decls
+    vector<func_decl> decls;
+    for (unsigned i = 0; i < var_num; i++) {
+        decls.push_back(vars[i].decl());
+    }
+
+    // get candidate
+    // TODO: generate candidate automatically
+    // e.g., sampling on a polytope
+    vector<int> candidate;
+    for (unsigned i = 0; i < var_num; i++) {
+        candidate.push_back(0);
+    }
+
+    // check the model
+    bool res = check_model_misc(exp, exp.ctx(), decls, candidate);
+    return res;
+}
+
 
 #endif /* Z3PLUS_H_ */

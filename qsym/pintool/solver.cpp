@@ -97,6 +97,7 @@ Solver::Solver(
   , syncing_(false)
   , start_time_(getTimeStamp())
   , solving_time_(0)
+  , compute_interval_time_(0)
   , last_pc_(0)
   , dep_forest_()
 {
@@ -199,6 +200,8 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
     return;
 
   if (last_interested_) {
+    uint64_t before = getTimeStamp();
+
     reset();
     // TODO: add optimize in z3
     syncConstraints(e);
@@ -213,14 +216,47 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
         // but get_abstract_interval_as_expr only finds min_expr and max_expr
         // we should decide if to use it or not
 
+        // First, solve once
+        checkAndSave();
+
+        // Second, get the interval
+        z3::expr_vector interval(context_);
+        z3::expr cur_assertions = z3::mk_and(solver_.assertions());
+        get_abstract_interval_as_expr(cur_assertions, z3_expr, interval, 6000);
+        z3::expr min_expr = interval[0];
+        z3::expr max_expr = interval[1];
+
+        // Third, solve twice
+        if (!min_expr.is_false()) {
+            solveOne(z3_expr == min_expr);
+        }
+        if (!max_expr.is_false()) {
+            solveOne(z3_expr == max_expr);
+        }
+
+        // Finally, mutate the model?
+        // TODO: what values should be fixed?
+        // How many variables does z3_expr have
+#if 0
+        z3::expr_vector z3_expr_vars(context_);
+        get_expr_vars(z3_expr, z3_expr_vars);
+        // use mutate to get model!!!!
+
+#endif
+
     } else {
         z3::expr min_expr = getMinValue(z3_expr);
         z3::expr max_expr = getMaxValue(z3_expr);
         solveOne(z3_expr == min_expr);
         solveOne(z3_expr == max_expr);
     }
+
+    uint64_t cur = getTimeStamp();
+    uint64_t elapsed = cur - before;
+    compute_interval_time_ += elapsed;
+    LOG_STAT("SMT: { \"compute_interal_time\": " + decstr(compute_interval_time_) + " }\n");
   }
-  addValue(e, addr);
+  addValue(e, addr);  // why
 }
 
 void Solver::addValue(ExprRef e, ADDRINT val) {
