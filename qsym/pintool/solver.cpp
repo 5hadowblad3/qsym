@@ -217,7 +217,7 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
         // we should decide if to use it or not
 
         // First, solve once
-        /*
+
         checkAndSave();
 
         // Second, get the interval
@@ -241,7 +241,7 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
         z3::expr_vector z3_expr_vars(context_);
         get_expr_vars(z3_expr, z3_expr_vars);
         // use mutate to get model!!!!
-        */
+
 
 
 
