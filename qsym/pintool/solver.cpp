@@ -217,6 +217,7 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
         // we should decide if to use it or not
 
         // First, solve once
+        /*
         checkAndSave();
 
         // Second, get the interval
@@ -237,12 +238,12 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
         // Finally, mutate the model?
         // TODO: what values should be fixed?
         // How many variables does z3_expr have
-#if 0
         z3::expr_vector z3_expr_vars(context_);
         get_expr_vars(z3_expr, z3_expr_vars);
         // use mutate to get model!!!!
+        */
 
-#endif
+
 
     } else {
         z3::expr min_expr = getMinValue(z3_expr);
