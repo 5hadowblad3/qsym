@@ -1,5 +1,6 @@
 #include <set>
 #include <byteswap.h>
+#include <iostream>
 #include "solver.h"
 #include "z3plus.h"
 
@@ -97,6 +98,7 @@ Solver::Solver(
   , syncing_(false)
   , start_time_(getTimeStamp())
   , solving_time_(0)
+  , total_solving_num_(0)
   , compute_interval_time_(0)
   , last_pc_(0)
   , dep_forest_()
@@ -128,6 +130,13 @@ void Solver::add(z3::expr expr) {
 }
 
 z3::check_result Solver::check() {
+  total_solving_num_++;
+  // does this work?
+  if (total_solving_num_ % 200 == 0) {
+      std::cout << " ===================================================\n";
+      std::cout << "Current SMT query num: " << total_solving_num_ << "\n";
+      std::cout << " ===================================================\n";
+  }
   uint64_t before = getTimeStamp();
   z3::check_result res;
   LOG_STAT(
