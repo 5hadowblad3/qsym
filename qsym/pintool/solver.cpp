@@ -228,10 +228,10 @@ void Solver::addAddr(ExprRef e, llvm::APInt addr) {
         z3::expr max_expr = interval[1];
 
         // Third, solve twice
-        if (!min_expr.is_false()) {
+        if (!(min_expr.is_false())) {
             solveOne(z3_expr == min_expr);
         }
-        if (!max_expr.is_false()) {
+        if (!(max_expr.is_false())) {
             solveOne(z3_expr == max_expr);
         }
 

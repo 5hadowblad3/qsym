@@ -195,7 +195,6 @@ expr do_constant_propagation(expr& to_simp) {
     return cp.apply(gg)[0].as_expr();
 }
 
-#if 1
 bool check_model_misc(expr& exp, context &ctx, vector<func_decl>& decls, vector<int>& candidate) {
     model cur_model(ctx);
 
@@ -206,8 +205,13 @@ bool check_model_misc(expr& exp, context &ctx, vector<func_decl>& decls, vector<
         cur_model.add_const_interp(decls[i], var_i);
     }
     // check if exp is satisfied by cur_model
-    if (cur_model.eval(exp).is_true()) { return true; }
-    else { return false; }
+    expr xx = cur_model.eval(exp);
+    if (xx.is_true()) { 
+        return true; 
+    }
+    else { 
+        return false; 
+    }
 }
 
 bool check_model_with_mutate(expr& exp) {
@@ -235,6 +239,5 @@ bool check_model_with_mutate(expr& exp) {
     bool res = check_model_misc(exp, exp.ctx(), decls, candidate);
     return res;
 }
-#endif
 
 #endif /* Z3PLUS_H_ */
