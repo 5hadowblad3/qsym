@@ -59,6 +59,7 @@ protected:
   bool                  syncing_;
   uint64_t              start_time_;
   uint64_t              solving_time_;
+  uint64_t              total_solving_num_;
   uint64_t              compute_interval_time_;
   ADDRINT               last_pc_;
   DependencyForest<Expr> dep_forest_;
