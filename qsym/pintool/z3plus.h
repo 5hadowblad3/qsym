@@ -202,7 +202,7 @@ bool check_model_misc(expr& exp, context &ctx, vector<func_decl>& decls, vector<
     // initialize the model with candidate
     for (unsigned i = 0; i < decls.size(); i++) {
         // TODO: decide the bit-vector size
-        expr var_i = ctx.bv_val(candidate[i], 32);
+        expr var_i = ctx.bv_val(candidate[i], 8);
         cur_model.add_const_interp(decls[i], var_i);
     }
     // check if exp is satisfied by cur_model
