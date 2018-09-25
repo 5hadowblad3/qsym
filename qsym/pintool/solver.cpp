@@ -132,17 +132,20 @@ void Solver::add(z3::expr expr) {
 z3::check_result Solver::check() {
   total_solving_num_++;
   // does this work?
-  if (total_solving_num_ % 200 == 0) {
-      std::cout << " ===================================================\n";
-      std::cout << "Current SMT query num: " << total_solving_num_ << "\n";
-      std::cout << " ===================================================\n";
-  }
+  //if (total_solving_num_ % 10 == 0) {
+  LOG_STAT("=========================\nCurrent SMT query num:" +  decstr(total_solving_num_) + "\n, sovling time:" + decstr(solving_time_) + "\n =========\n");
+  LOG_STAT("=========================\nCurrent interval time:" +  decstr(compute_interval_time_) + "\n =========\n");
+
+    //  std::cout << " ===================================================\n";
+    //  std::cout << "Current SMT query num: " << total_solving_num_ << "\n";
+    //  std::cout << " ===================================================\n";
+  //}
   uint64_t before = getTimeStamp();
   z3::check_result res;
   LOG_STAT(
       "SMT: { \"solving_time\": " + decstr(solving_time_) + ", "
       + "\"total_time\": " + decstr(before - start_time_) + " }\n");
-  // LOG_DEBUG("Constraints: " + solver_.to_smt2() + "\n");
+  //LOG_DEBUG("Constraints: " + solver_.to_smt2() + "\n");
   try {
     res = solver_.check();
   }
@@ -353,6 +356,7 @@ std::vector<UINT8> Solver::getConcreteValues() {
   z3::model m = solver_.get_model();
   unsigned num_constants = m.num_consts();
   std::vector<UINT8> values = inputs_;
+  int modify_cnt = 0;
   for (unsigned i = 0; i < num_constants; i++) {
     z3::func_decl decl = m.get_const_decl(i);
     z3::expr e = m.get_const_interp(decl);
@@ -360,9 +364,11 @@ std::vector<UINT8> Solver::getConcreteValues() {
 
     if (name.kind() == Z3_INT_SYMBOL) {
       int value = e.get_numeral_int();
+      modify_cnt++;
       values[name.to_int()] = (UINT8)value;
     }
   }
+  LOG_STAT("OUTPUT:   INPUT SIZE------: " + decstr(values.size()) + "   Modify size:     " + decstr(modify_cnt) + "        \n===============================\n");
   return values;
 }
 
