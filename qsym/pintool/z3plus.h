@@ -32,6 +32,8 @@ using namespace z3;
  *  - do_constant_propagation(exp)
  *      use cp to simplify exp
  *  - check_model
+ *
+ *  - is_sat_under_partial_model
  */
 
 bool get_expr_vars(expr& exp, expr_vector& vars) {
@@ -236,5 +238,41 @@ bool check_model_with_mutate(expr& exp) {
     return res;
 }
 #endif
+
+
+/*
+ *\p  exp: the cnts
+ *\p  m:   the full model
+ *\p  donot_cared_vars: the don't cared vars
+ *
+ * For example
+ * expr G =  a == 6 || (b + c == 4 && c - d == 2);
+ *
+ * A partial model is [a = 6, b = any, c = any]
+ */
+bool sat_under_partial_model(expr& exp, model& m, expr_vector& donot_cared_vars) {
+    model partial_model(exp.ctx());
+
+    unsigned num_constants = m.num_consts();
+    for (unsigned i = 0; i < num_constants; i++) {
+        z3::func_decl decl = m.get_const_decl(i);
+        bool add_to_partial_model = true;
+        for (unsigned j = 0; j < donot_cared_vars.size(); j++) {
+            if (donot_cared_vars[j].decl().name() == decl.name()) {
+                add_to_partial_model = false;
+                break;
+            }
+        }
+        if (add_to_partial_model) {
+            z3::expr val_e = m.get_const_interp(decl);
+            partial_model.add_const_interp(decl, val_e);
+        }
+    }
+    // check if exp is satisfied by cur_model
+    if (partial_model.eval(exp, true).is_true()) { return true; }
+    else { return false; }
+}
+
+
 
 #endif /* Z3PLUS_H_ */
