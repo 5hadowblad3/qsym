@@ -357,6 +357,10 @@ std::vector<UINT8> Solver::getConcreteValues() {
   unsigned num_constants = m.num_consts();
   std::vector<UINT8> values = inputs_;
   int modify_cnt = 0;
+
+  // get the cared variables and their indexes
+  std::vector<std::pair<z3::expr&, int>> var_index_pairs;
+
   for (unsigned i = 0; i < num_constants; i++) {
     z3::func_decl decl = m.get_const_decl(i);
     z3::expr e = m.get_const_interp(decl);
@@ -366,9 +370,48 @@ std::vector<UINT8> Solver::getConcreteValues() {
       int value = e.get_numeral_int();
       modify_cnt++;
       values[name.to_int()] = (UINT8)value;
+      var_index_pairs.push_back(std::mk_pair(e, name.to_int()));
     }
   }
   LOG_STAT("OUTPUT:   INPUT SIZE------: " + decstr(values.size()) + "   Modify size:     " + decstr(modify_cnt) + "        \n===============================\n");
+
+
+  z3::expr cur_assertions = z3::mk_and(solver_.assertions());
+  // get the interval of each cared variable!
+  for (auto pair : var_index_pairs) {
+      z3::expr& var_i = pair.first;
+      z3::expr_vector interval_i(context_);
+      get_abstract_interval_as_expr(cur_assertions, var_i, interval_i, 5000);
+      z3::expr min_expr_i = interval_i[0];
+      z3::expr max_expr_i = interval_i[1];
+      std::vector interval_i_num;  // the numerical interval
+      if (!min_expr_i.is_false()) {
+          interval_i_num.push_back((UINT8)(var_i.get_numeral_int()));
+      } else {
+          interval_i_num.push_back((UINT8)(0));
+      }
+      if (!max_expr_i.is_false()) {
+          interval_i_num.push_back((UINT8)(var_i.get_numeral_int()));
+      } else {
+          interval_i_num.push_back((UINT8)(40096));
+      }
+  }
+
+  // create a new model
+  model cur_model(context_);
+  for (unsigned i = 0; i <  num_constants; i++) {
+      // TODO: decide the bit-vector size
+      z3::func_decl decl = m.get_const_decl(i);
+      z3::expr e = m.get_const_interp(decl);
+      expr val_e = m.eval(e);
+      cur_model.add_const_interp(decl, val_e);
+  }
+  if (cur_model.eval(cur_assertions).is_true()) {
+      std::cout << "new model satsified\n";
+  }
+
+  // TODO
+
   return values;
 }
 
