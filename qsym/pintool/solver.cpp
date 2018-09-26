@@ -369,7 +369,7 @@ std::vector<UINT8> Solver::getConcreteValues() {
     }
   }
 
-
+#if 1
   z3::expr cur_assertions = z3::mk_and(solver_.assertions());
   // get the interval of each cared variable!
   for (auto pair : var_index_pairs) {
@@ -396,15 +396,15 @@ std::vector<UINT8> Solver::getConcreteValues() {
   for (unsigned i = 0; i <  num_constants; i++) {
       // TODO: decide the bit-vector size
       z3::func_decl decl = m.get_const_decl(i);
-      z3::expr e = m.get_const_interp(decl);
-      expr val_e = m.eval(e);
+      z3::expr val_e = m.get_const_interp(decl);
       cur_model.add_const_interp(decl, val_e);
   }
   if (cur_model.eval(cur_assertions).is_true()) {
       std::cout << "new model satsified\n";
   }
 
-  // TODO
+
+#endif
 
   return values;
 }
