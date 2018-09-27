@@ -278,4 +278,31 @@ bool sat_under_partial_model(expr& exp, model& m, expr_vector& donot_cared_vars)
 
 
 
+bool sat_under_random_model(expr& exp, model& m, expr& var_s, int v) {
+    model random_model(exp.ctx());
+    unsigned num_constants = m.num_consts();
+
+    //first, fix other variables
+    for (unsigned i = 0; i <  num_constants; i++) {
+        // TODO: decide the bit-vector size
+        z3::func_decl decl = m.get_const_decl(i);
+        z3::expr val_e = m.get_const_interp(decl);
+        if (decl.name() != var_s.decl().name()) {
+            random_model.add_const_interp(decl, val_e);
+        }
+    }
+
+    // then, add a val for var_s
+    expr val_for_var_s = exp.ctx().bv_val(v, 8);
+    z3::func_decl decl_for_var_s = var_s.decl();
+    random_model.add_const_interp(decl_for_var_s, val_for_var_s);
+
+    // check if exp is satisfied by cur_model
+    if (random_model.eval(exp, true).is_true()) { return true; }
+    else { return false; }
+}
+
+
+
+
 #endif /* Z3PLUS_H_ */

@@ -381,46 +381,63 @@ namespace qsym {
 
 #if 1
         z3::expr cur_assertions = z3::mk_and(solver_.assertions());
-        // get the interval of each cared variable!
-        LOG_STAT("Interval Information:\n");
-        for (auto& var_i : var_index_pairs) {
-            
-            z3::expr_vector interval_i(context_);
-            get_abstract_interval_as_expr(cur_assertions, var_i, interval_i, 5000);
-            z3::expr min_expr_i = interval_i[0];
-            z3::expr max_expr_i = interval_i[1];
-            std::vector<int> interval_i_num;  // the numerical interval
-            if (!min_expr_i.is_false()) {
-                interval_i_num.push_back((UINT8)(min_expr_i.get_numeral_int()));
-                LOG_STAT("MIN: " + decstr(min_expr_i.get_numeral_int()));
+
+        /*
+         * Single variable:
+         *    if the interval is bounded, get a new model to test
+         */
+        if (var_index_pairs.size() == 1) {
+            LOG_STAT("AbsFuzz: only single variable\n");
+
+            // First, get interval information
+            LOG_STAT("Interval Information:\n");
+            z3::expr& var_s = var_index_pairs[0];
+            z3::expr_vector interval_s(context_);
+            z3::expr_vector interval_s(context_);
+            get_abstract_interval_as_expr(cur_assertions, var_s, interval_s, 5000);
+            z3::expr min_expr_s = interval_s[0];
+            z3::expr max_expr_s = interval_s[1];
+            std::vector<int> interval_s_num;  // the numerical interval
+            if (!min_expr_s.is_false()) {
+                interval_s_num.push_back((UINT8)(min_expr_s.get_numeral_int()));
+                LOG_STAT("MIN: " + decstr(min_expr_s.get_numeral_int()));
             } else {
-                interval_i_num.push_back((UINT8)(0));
+                interval_s_num.push_back((UINT8)(0));
                 LOG_STAT("MIN: " + decstr(0));
             }
-            if (!max_expr_i.is_false()) {
-                interval_i_num.push_back((UINT8)(max_expr_i.get_numeral_int()));
-                LOG_STAT("MAX: " + decstr(max_expr_i.get_numeral_int()) + "\n ");
+            if (!max_expr_s.is_false()) {
+                interval_s_num.push_back((UINT8)(max_expr_s.get_numeral_int()));
+                LOG_STAT("MAX: " + decstr(max_expr_s.get_numeral_int()) + "\n ");
             } else {
-                interval_i_num.push_back((UINT8)(40096));
+                interval_s_num.push_back((UINT8)(40096));
                 LOG_STAT("MAX: " + decstr(0) + "\n ");
             }
-            
-        }
-        
-        // create a new model
-        model cur_model(context_);
-        for (unsigned i = 0; i <  num_constants; i++) {
-            // TODO: decide the bit-vector size
-            z3::func_decl decl = m.get_const_decl(i);
-            z3::expr val_e = m.get_const_interp(decl);
-            cur_model.add_const_interp(decl, val_e);
-        }
-        if (cur_model.eval(cur_assertions).is_true()) {
-            std::cout << "new model satsified\n";
-        }
-        
-        // test partial model
-        if (var_index_pairs.size() > 1) {
+
+            // The interval is not unbounded, we test three random model
+            if (interval_s_num[0] > 0 || interval_s_num[1] < 255) {
+                if (interval_s_num[0] != interval_s_num[1]) {
+                    LOG_STAT("AbsFuzz: interval bounded, and not fixed!!!!\n");
+                    int x_random_models_tested = 0;
+                    for (int k = interval_s_num[0] + 1; k < interval_s_num[1]; k++) {
+                        if (sat_under_random_model(cur_assertions, m, var_s, k)) {
+                            LOG_STAT("AbsFuzz: random model success!!!!\n");
+                        } else {
+                            LOG_STAT("AbsFuzz: random model fail!!!!\n");
+                        }
+                        x_random_models_tested++;
+                        if (x_random_models_tested == 5) {
+                            break;
+                        }
+                    }
+                }
+            }
+
+        } else if (var_index_pairs.size() > 1) {
+            /*
+             *
+             * Multiple Variables
+             */
+            // First, test partial model
             for (auto& var_i : var_index_pairs) {
                 z3::expr_vector donot_cared_vars(context_);
                 donot_cared_vars.push_back(var_i);
@@ -428,24 +445,39 @@ namespace qsym {
                 bool var_i_irrelevant = sat_under_partial_model(cur_assertions, m, donot_cared_vars);
                 if (var_i_irrelevant) {
                     // print var_i.decl().name().to_int();
-                    
+                    LOG_STAT("AbsFuzz: partial model success!!!!\n");
                 }
             }
+
+            // Then, Check Interval Information
+            LOG_STAT("AbsFuzz: multiple variables\n");
+            LOG_STAT("Interval Information:\n");
+            for (auto& var_i : var_index_pairs) {
+                z3::expr_vector interval_i(context_);
+                get_abstract_interval_as_expr(cur_assertions, var_i, interval_i, 5000);
+                z3::expr min_expr_i = interval_i[0];
+                z3::expr max_expr_i = interval_i[1];
+                std::vector<int> interval_i_num;  // the numerical interval
+                if (!min_expr_i.is_false()) {
+                    interval_i_num.push_back((UINT8)(min_expr_i.get_numeral_int()));
+                    LOG_STAT("MIN: " + decstr(min_expr_i.get_numeral_int()));
+                } else {
+                    interval_i_num.push_back((UINT8)(0));
+                    LOG_STAT("MIN: " + decstr(0));
+                }
+                if (!max_expr_i.is_false()) {
+                    interval_i_num.push_back((UINT8)(max_expr_i.get_numeral_int()));
+                    LOG_STAT("MAX: " + decstr(max_expr_i.get_numeral_int()) + "\n ");
+                } else {
+                    interval_i_num.push_back((UINT8)(40096));
+                    LOG_STAT("MAX: " + decstr(0) + "\n ");
+                }
+
+                // TODO: mutate
+            }
+
+
         }
-        
-        // create a new model
-        /*
-        model cur_model(context_);
-        for (unsigned i = 0; i <  num_constants; i++) {
-            // TODO: decide the bit-vector size
-            z3::func_decl decl = m.get_const_decl(i);
-            z3::expr val_e = m.get_const_interp(decl);
-            cur_model.add_const_interp(decl, val_e);
-        }
-        if (cur_model.eval(cur_assertions).is_true()) {
-            std::cout << "new model satsified\n";
-        }
-        */
 
 
 #endif
