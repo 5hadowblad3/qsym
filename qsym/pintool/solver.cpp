@@ -418,6 +418,34 @@ namespace qsym {
         if (cur_model.eval(cur_assertions).is_true()) {
             std::cout << "new model satsified\n";
         }
+        
+        // test partial model
+        if (var_index_pairs.size() > 1) {
+            for (auto& var_i : var_index_pairs) {
+                z3::expr_vector donot_cared_vars(context_);
+                donot_cared_vars.push_back(var_i);
+                // every time, we only consider one variable as "don't cares"
+                bool var_i_irrelevant = sat_under_partial_model(cur_assertions, m, donot_cared_vars);
+                if (var_i_irrelevant) {
+                    // print var_i.decl().name().to_int();
+                    
+                }
+            }
+        }
+        
+        // create a new model
+        /*
+        model cur_model(context_);
+        for (unsigned i = 0; i <  num_constants; i++) {
+            // TODO: decide the bit-vector size
+            z3::func_decl decl = m.get_const_decl(i);
+            z3::expr val_e = m.get_const_interp(decl);
+            cur_model.add_const_interp(decl, val_e);
+        }
+        if (cur_model.eval(cur_assertions).is_true()) {
+            std::cout << "new model satsified\n";
+        }
+        */
 
 
 #endif
