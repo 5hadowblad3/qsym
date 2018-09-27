@@ -397,7 +397,22 @@ std::vector<UINT8> Solver::getConcreteValues() {
       }
   }
 
+  // test partial model
+  if (var_index_pairs.size() > 1) {
+      for (auto& var_i : var_index_pairs) {
+          z3::expr_vector donot_cared_vars(context_);
+          donot_cared_vars.push_back(var_i);
+          // every time, we only consider one variable as "don't cares"
+          bool var_i_irrelevant = sat_under_partial_model(cur_assertions, m, donot_cared_vars);
+          if (var_i_irrelevant) {
+              // print var_i.decl().name().to_int();
+
+          }
+      }
+  }
+
   // create a new model
+  /*
   model cur_model(context_);
   for (unsigned i = 0; i <  num_constants; i++) {
       // TODO: decide the bit-vector size
@@ -408,6 +423,7 @@ std::vector<UINT8> Solver::getConcreteValues() {
   if (cur_model.eval(cur_assertions).is_true()) {
       std::cout << "new model satsified\n";
   }
+  */
 
 
 #endif
