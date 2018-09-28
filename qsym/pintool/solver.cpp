@@ -12,6 +12,8 @@ namespace qsym {
         const int kSessionIdLength = 32;
         const unsigned kSolverTimeout = 10000; // 10 seconds
         const bool useOptSolver = false;    // decide if to use opt for optimistic solving
+        const bool useAbsFuzz = true;
+        const bool useAbsFuzzForTestsGeneration = true;
         
         std::string toString6digit(INT32 val) {
             char buf[6 + 1]; // ndigit + 1
@@ -351,7 +353,9 @@ namespace qsym {
             inputs_.push_back((UINT8)ch);
     }
     
-    std::vector<UINT8> Solver::getConcreteValues() {
+    std::vector<std::vector<UNIT8>> Solver::getConcreteValues() {
+        std::vector<std::vector<UNIT8>> values_set;
+
         // TODO: change from real input
         z3::model m = solver_.get_model();
         unsigned num_constants = m.num_consts();
@@ -379,138 +383,181 @@ namespace qsym {
         }
         LOG_STAT("\nOUTPUT:   INPUT SIZE------: " + decstr(values.size()) + "   Modify size:     " + decstr(modify_cnt) + "        \n===============================\n");
 
-#if 1
-        z3::expr cur_assertions = z3::mk_and(solver_.assertions());
+        // The values returned by qsym
+        values_set.push_back(values);
 
-        /*
-         * Single variable:
-         *    if the interval is bounded, get a new model to test
-         */
-        if (var_index_pairs.size() == 1) {
-            LOG_STAT("AbsFuzz: only single variable\n");
+        if (useAbsFuzz) {
+            z3::expr cur_assertions = z3::mk_and(solver_.assertions());
 
-            // First, get interval information
-            LOG_STAT("Interval Information:\n");
-            z3::expr& var_s = var_index_pairs[0];
-            z3::expr_vector interval_s(context_);
-            z3::expr_vector interval_s(context_);
-            get_abstract_interval_as_expr(cur_assertions, var_s, interval_s, 5000);
-            z3::expr min_expr_s = interval_s[0];
-            z3::expr max_expr_s = interval_s[1];
-            std::vector<int> interval_s_num;  // the numerical interval
-            if (!min_expr_s.is_false()) {
-                interval_s_num.push_back((UINT8)(min_expr_s.get_numeral_int()));
-                LOG_STAT("MIN: " + decstr(min_expr_s.get_numeral_int()));
-            } else {
-                interval_s_num.push_back((UINT8)(0));
-                LOG_STAT("MIN: " + decstr(0));
-            }
-            if (!max_expr_s.is_false()) {
-                interval_s_num.push_back((UINT8)(max_expr_s.get_numeral_int()));
-                LOG_STAT("MAX: " + decstr(max_expr_s.get_numeral_int()) + "\n ");
-            } else {
-                interval_s_num.push_back((UINT8)(40096));
-                LOG_STAT("MAX: " + decstr(0) + "\n ");
-            }
+            if (var_index_pairs.size() == 1) {
+                /*
+                 * Single variable:
+                 */
 
-            // The interval is not unbounded, we test three random model
-            if (interval_s_num[0] > 0 || interval_s_num[1] < 255) {
-                if (interval_s_num[0] != interval_s_num[1]) {
-                    LOG_STAT("AbsFuzz: interval bounded, and not fixed!!!!\n");
-                    int x_random_models_tested = 0;
-                    for (int k = interval_s_num[0] + 1; k < interval_s_num[1]; k++) {
-                        if (sat_under_random_model(cur_assertions, m, var_s, k)) {
-                            LOG_STAT("AbsFuzz: random model success!!!!\n");
-                        } else {
-                            LOG_STAT("AbsFuzz: random model fail!!!!\n");
-                        }
-                        x_random_models_tested++;
-                        if (x_random_models_tested == 5) {
-                            break;
-                        }
-                    }
-                }
-            }
-
-        } else if (var_index_pairs.size() > 1) {
-            /*
-             *
-             * Multiple Variables
-             */
-            // First, test partial model
-            for (auto& var_i : var_index_pairs) {
-                z3::expr_vector donot_cared_vars(context_);
-                donot_cared_vars.push_back(var_i);
-                // every time, we only consider one variable as "don't cares"
-                bool var_i_irrelevant = sat_under_partial_model(cur_assertions, m, donot_cared_vars);
-                if (var_i_irrelevant) {
-                    // print var_i.decl().name().to_int();
-                    LOG_STAT("AbsFuzz: partial model success!!!!\n");
-                }
-            }
-
-            // Then, Check Interval Information
-            LOG_STAT("AbsFuzz: multiple variables\n");
-            LOG_STAT("Interval Information:\n");
-            for (auto& var_i : var_index_pairs) {
-                z3::expr_vector interval_i(context_);
-                get_abstract_interval_as_expr(cur_assertions, var_i, interval_i, 5000);
-                z3::expr min_expr_i = interval_i[0];
-                z3::expr max_expr_i = interval_i[1];
-                std::vector<int> interval_i_num;  // the numerical interval
-                if (!min_expr_i.is_false()) {
-                    interval_i_num.push_back((UINT8)(min_expr_i.get_numeral_int()));
-                    LOG_STAT("MIN: " + decstr(min_expr_i.get_numeral_int()));
+                LOG_STAT("AbsFuzz: only single variable\n");
+                // First, get interval information
+                LOG_STAT("Interval Information:\n");
+                z3::expr& var_s = var_index_pairs[0];
+                z3::expr_vector interval_s(context_);
+                z3::expr_vector interval_s(context_);
+                get_abstract_interval_as_expr(cur_assertions, var_s, interval_s, 5000);
+                z3::expr min_expr_s = interval_s[0];
+                z3::expr max_expr_s = interval_s[1];
+                std::vector<int> interval_s_num;  // the numerical interval
+                if (!min_expr_s.is_false()) {
+                    interval_s_num.push_back((UINT8)(min_expr_s.get_numeral_int()));
+                    LOG_STAT("MIN: " + decstr(min_expr_s.get_numeral_int()));
                 } else {
-                    interval_i_num.push_back((UINT8)(0));
+                    interval_s_num.push_back((UINT8)(0));
                     LOG_STAT("MIN: " + decstr(0));
                 }
-                if (!max_expr_i.is_false()) {
-                    interval_i_num.push_back((UINT8)(max_expr_i.get_numeral_int()));
-                    LOG_STAT("MAX: " + decstr(max_expr_i.get_numeral_int()) + "\n ");
+                if (!max_expr_s.is_false()) {
+                    interval_s_num.push_back((UINT8)(max_expr_s.get_numeral_int()));
+                    LOG_STAT("MAX: " + decstr(max_expr_s.get_numeral_int()) + "\n ");
                 } else {
-                    interval_i_num.push_back((UINT8)(40096));
+                    interval_s_num.push_back((UINT8)(40096));
                     LOG_STAT("MAX: " + decstr(0) + "\n ");
                 }
 
-                // TODO: mutate
+                // The interval is not unbounded, we test 10 random model
+                if (interval_s_num[0] > 0 || interval_s_num[1] < 255) {
+                    if (interval_s_num[0] != interval_s_num[1]) {
+                        LOG_STAT("AbsFuzz: interval bounded, and not fixed!!!!\n");
+                        int x_random_models_tested = 0;
+                        for (int k = interval_s_num[0]; k <= interval_s_num[1]; k++) {
+                            if (sat_under_random_model(cur_assertions, m, var_s, k)) {
+                                LOG_STAT("AbsFuzz: random model success!!!!\n");
+                                // Now generate new inputs
+                                if (useAbsFuzzForTestsGeneration) {
+                                    z3::model& randmodel = get_random_model(cur_assertions, m, var_s, k);
+                                    std::vector<UINT8> values_from_randmodel = inputs_;
+                                    for (unsigned i = 0; i < num_constants; i++) {
+                                        z3::func_decl decl = randmodel.get_const_decl(i);
+                                        z3::expr e = randmodel.get_const_interp(decl);
+                                        z3::symbol name = decl.name();
+                                        if (name.kind() == Z3_INT_SYMBOL) {
+                                            int value = e.get_numeral_int();
+                                            values_from_randmodel[name.to_int()] = (UINT8)value;
+                                        }
+                                    }
+                                    // store the new values
+                                    values_set.push_back(values_from_randmodel);
+                                }
+                            } else {
+                                LOG_STAT("AbsFuzz: random model fail!!!!\n");
+                            }
+                            x_random_models_tested++;
+                            if (x_random_models_tested == 10) {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+            } else if (var_index_pairs.size() > 1) {
+                /*
+                 *
+                 * Multiple Variables
+                 */
+
+                // First, test partial model
+                z3::expr_vector real_donot_cared_vars(context_);
+                for (auto& var_i : var_index_pairs) {
+                    z3::expr_vector potential_donot_cared_vars(context_);
+                    potential_donot_cared_vars.push_back(var_i);
+                    // every time, we only consider one variable as "don't cares"
+                    bool var_i_irrelevant = sat_under_partial_model(cur_assertions, m, potential_donot_cared_vars);
+                    if (var_i_irrelevant) {
+                        // print var_i.decl().name().to_int();
+                        LOG_STAT("AbsFuzz: partial model success!!!!\n");
+                        real_donot_cared_vars.push_back(var_i);
+                    }
+                }
+
+                // Each var_s is a don't care variable
+                // Now generate new inputs
+                if (useAbsFuzzForTestsGeneration) {
+                    for (z3::expr& var_s : real_donot_cared_vars) {
+                        // TODO: how many models to generate
+                        int num_models_to_generate = 5;
+                        // TODO: where to start from?
+                        for (int i = 0; i <= num_models_to_generate; i++) {
+                            z3::model& randmodel = get_random_model(cur_assertions, m, var_s, i);
+                            std::vector<UINT8> values_from_randmodel = inputs_;
+                            for (unsigned i = 0; i < num_constants; i++) {
+                                z3::func_decl decl = randmodel.get_const_decl(i);
+                                z3::expr e = randmodel.get_const_interp(decl);
+                                z3::symbol name = decl.name();
+                                if (name.kind() == Z3_INT_SYMBOL) {
+                                    int value = e.get_numeral_int();
+                                    values_from_randmodel[name.to_int()] = (UINT8)value;
+                                }
+                            }
+                            // store the new values
+                            values_set.push_back(values_from_randmodel);
+                        }
+                    }
+                }
+
+                // Then, Check Interval Information
+                LOG_STAT("AbsFuzz: multiple variables\n");
+                LOG_STAT("Interval Information:\n");
+                for (auto& var_i : var_index_pairs) {
+                    z3::expr_vector interval_i(context_);
+                    get_abstract_interval_as_expr(cur_assertions, var_i, interval_i, 5000);
+                    z3::expr min_expr_i = interval_i[0];
+                    z3::expr max_expr_i = interval_i[1];
+                    std::vector<int> interval_i_num;  // the numerical interval
+                    if (!min_expr_i.is_false()) {
+                        interval_i_num.push_back((UINT8)(min_expr_i.get_numeral_int()));
+                        LOG_STAT("MIN: " + decstr(min_expr_i.get_numeral_int()));
+                    } else {
+                        interval_i_num.push_back((UINT8)(0));
+                        LOG_STAT("MIN: " + decstr(0));
+                    }
+                    if (!max_expr_i.is_false()) {
+                        interval_i_num.push_back((UINT8)(max_expr_i.get_numeral_int()));
+                        LOG_STAT("MAX: " + decstr(max_expr_i.get_numeral_int()) + "\n ");
+                    } else {
+                        interval_i_num.push_back((UINT8)(40096));
+                        LOG_STAT("MAX: " + decstr(0) + "\n ");
+                    }
+                    // TODO: mutate
+                }
             }
-
-
         }
-
-
-#endif
-        
-        return values;
+        return values_set;
     }
     
     void Solver::saveValues(const std::string& postfix) {
-        std::vector<UINT8> values = getConcreteValues();
+        // std::vector<UINT8> values = getConcreteValues();
+        std::vector<std::vector<UNIT8>> values_set = getConcreteValues();
         
-        // If no output directory is specified, then just print it out
-        if (out_dir_.empty()) {
-            printValues(values);
-            return;
+        for (std::vector<UINT8> values : values_set) {
+            // If no output directory is specified, then just print it out
+            if (out_dir_.empty()) {
+                printValues(values);
+                return;
+            }
+
+            std::string fname = out_dir_+ "/" + toString6digit(num_generated_);
+            // Add postfix to record where it is genereated
+            if (!postfix.empty())
+                fname = fname + "-" + postfix;
+            ofstream of(fname, std::ofstream::out | std::ofstream::binary);
+            LOG_INFO("New testcase: " + fname + "\n");
+            if (of.fail())
+                LOG_FATAL("Unable to open a file to write results\n");
+
+            // TODO: batch write
+            for (unsigned i = 0; i < values.size(); i++) {
+                char val = values[i];
+                of.write(&val, sizeof(val));
+            }
+
+            of.close();
+            num_generated_++;
         }
-        
-        std::string fname = out_dir_+ "/" + toString6digit(num_generated_);
-        // Add postfix to record where it is genereated
-        if (!postfix.empty())
-            fname = fname + "-" + postfix;
-        ofstream of(fname, std::ofstream::out | std::ofstream::binary);
-        LOG_INFO("New testcase: " + fname + "\n");
-        if (of.fail())
-            LOG_FATAL("Unable to open a file to write results\n");
-        
-        // TODO: batch write
-        for (unsigned i = 0; i < values.size(); i++) {
-            char val = values[i];
-            of.write(&val, sizeof(val));
-        }
-        
-        of.close();
-        num_generated_++;
     }
     
     void Solver::printValues(const std::vector<UINT8>& values) {
