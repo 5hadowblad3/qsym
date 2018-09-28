@@ -67,7 +67,8 @@ protected:
   void checkOutDir();
   void readInput();
 
-  std::vector<UINT8> getConcreteValues();
+  // std::vector<UINT8> getConcreteValues();
+  std::vector<std::vector<UNIT8>> getConcreteValues();
   void saveValues(const std::string& postfix);
   void printValues(const std::vector<UINT8>& values);
 
