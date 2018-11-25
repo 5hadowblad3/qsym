@@ -190,6 +190,51 @@ void get_abstract_interval_as_expr(expr& pre_cond, expr& query, expr_vector& res
     }
 }
 
+
+void get_abstract_interval_as_expr_with_qsmt(expr& pre_cond, expr& query, expr_vector& res, int timeout) {
+    context& ctx = pre_cond.ctx();
+    params p(ctx);
+    p.set("timeout", (unsigned)timeout);
+    solver sol_min = tactic(ctx, "ufbv").mk_solver();
+    sol_min.set(p);
+    solver sol_max = tactic(ctx, "ufbv").mk_solver();
+    sol_max.set(p);
+
+    // find min
+    expr query_min = ctx.bv_const("rot_min", query.get_sort().bv_size());
+    Z3_ast from[] = { query };
+    Z3_ast to[] = { query_min };
+    expr repl_min(ctx);
+    repl_min = to_expr(ctx, Z3_substitute(ctx, pre_cond, 1, from, to));
+
+    expr qsmt_min = pre_cond && forall(query_min, implies(repl_min, query_min >= query));
+    sol_min.add(qsmt_min);
+    if (sol_min.check() == sat) {
+        model m = sol_min.get_model();
+        expr lower = m.eval(query);
+        res.push_back(lower);
+    } else {
+        res.push_back(ctx.bool_val(false));
+    }
+
+    // find max
+    expr query_max = ctx.bv_const("rot_max", query.get_sort().bv_size());
+    Z3_ast from_x[] = { query };
+    Z3_ast to_x[] = { query_max };
+    expr repl_max(ctx);
+    repl_max = to_expr(ctx, Z3_substitute(ctx, pre_cond, 1, from_x, to_x));
+    expr qsmt_max = pre_cond && forall(query_max, implies(repl_max, query_max <= query));
+    sol_max.add(qsmt_max);
+    if (sol_max.check() == sat) {
+        model m = sol_max.get_model();
+        expr upper = m.eval(query);
+        res.push_back(upper);
+    } else {
+        res.push_back(ctx.bool_val(false));
+    }
+}
+
+
 expr do_constant_propagation(expr& to_simp) {
     goal gg(to_simp.ctx());
     gg.add(to_simp);
