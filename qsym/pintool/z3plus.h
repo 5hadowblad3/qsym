@@ -189,6 +189,55 @@ void get_abstract_interval_as_expr(expr& pre_cond, expr& query, expr_vector& res
         res.push_back(Ctx.bool_val(false));
     }
 }
+/*
+ *
+ *  context ctx;
+    expr x = ctx.bv_const("x", 32);
+    expr y = ctx.bv_const("y", 32);
+
+    expr pre_cond = x <= 9 && x >= 5 && y >= 3 && y <= 10;
+
+    expr_vector query(ctx);
+    query.push_back(x);
+    query.push_back(y);
+
+    expr_vector res_x(ctx);
+    expr_vector res_y(ctx);
+    std::vector<expr_vector> multi_res;
+    multi_res.push_back(res_x); multi_res.push_back(res_y);
+
+    get_abstract_interval_as_expr_multi_obj(pre_cond, query, multi_res);
+ */
+// experimental; only works for z3 version > 4.7?
+void get_abstract_interval_as_expr_multi_obj(expr& pre_cond, expr_vector& query,
+        std::vector<expr_vector>& res, int timeout) {
+    context& Ctx = pre_cond.ctx();
+
+    params Param(Ctx);
+    Param.set("priority", Ctx.str_symbol("box"));
+    set_param("smt.timeout", (int)timeout);
+    //TODO: it seems we cannot set timeout directly to opt.. Maybe the new version of z3 is OK..
+    //Param.set("timeout", (unsigned)timeout);
+    optimize Opt(Ctx);
+    Opt.set(Param); Opt.add(pre_cond);
+
+    std::vector<std::pair<optimize::handle, optimize::handle>> goals;
+    for (unsigned i = 0; i < query.size(); i++) {
+        goals.push_back(std::make_pair(Opt.minimize(query[i]), Opt.maximize(query[i])));
+    }
+    try {
+        if (Opt.check() == z3::sat) {
+            for (unsigned i = 0; i < query.size(); i++) {
+                expr upper = Opt.lower(goals[i].second);
+
+                res[i].push_back(Opt.upper(goals[i].first));
+                res[i].push_back(Opt.lower(goals[i].second));
+            }
+        }
+    } catch(z3::exception &Ex) {
+        //es.push_back(Ctx.bool_val(false));
+    }
+}
 
 
 void get_abstract_interval_as_expr_with_qsmt(expr& pre_cond, expr& query, expr_vector& res, int timeout) {
@@ -370,6 +419,37 @@ bool sat_under_random_model(expr& exp, model& m, expr& var_s, int v) {
 }
 
 
+// Expr is the pre condition
+// Queries is the set of variables
+void dump_optimize_objectives(expr& Expr, expr_vector& Queries) {
+    z3::context& Ctx = Expr.ctx();
+    z3::optimize Opt(Ctx);
+    z3::params Param(Ctx);
+    Param.set("priority", Ctx.str_symbol("box"));
+    Opt.set(Param);
+    Opt.add(Expr);
+
+    for (unsigned i = 0; i < Queries.size(); i++) {
+        Opt.minimize(Queries[i]);
+        Opt.maximize(Queries[i]);
+    }
+
+    // output the constraints to a temp file in the dst
+    std::string DstFileName = "";
+    DstFileName.append("case");
+    DstFileName.append(std::to_string(clock()));
+    DstFileName.append(".opt.smt2");
+
+    std::ofstream DstFile;
+    DstFile.open(DstFileName);
+
+    if (DstFile.is_open()) {
+        DstFile << Opt << "\n";
+        DstFile.close();
+    } else {
+        std::cerr << "File cannot be opened: " << DstFileName << "\n";
+    }
+}
 
 
 #endif /* Z3PLUS_H_ */
