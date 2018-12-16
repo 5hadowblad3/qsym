@@ -421,7 +421,7 @@ bool sat_under_random_model(expr& exp, model& m, expr& var_s, int v) {
 
 // Expr is the pre condition
 // Queries is the set of variables
-void dump_optimize_objectives(expr& Expr, expr_vector& Queries) {
+void dump_optimize_objectives(expr& Expr, expr_vector& Queries, int mode) {
     z3::context& Ctx = Expr.ctx();
     z3::optimize Opt(Ctx);
     z3::params Param(Ctx);
@@ -430,8 +430,14 @@ void dump_optimize_objectives(expr& Expr, expr_vector& Queries) {
     Opt.add(Expr);
 
     for (unsigned i = 0; i < Queries.size(); i++) {
-        Opt.minimize(Queries[i]);
-        Opt.maximize(Queries[i]);
+        if (mode == 1) {
+            Opt.minimize(Queries[i]);
+        } else if (mode == 2) {
+            Opt.maximize(Queries[i]);
+        } else {
+            Opt.minimize(Queries[i]);
+            Opt.maximize(Queries[i]);
+        }
     }
 
     // output the constraints to a temp file in the dst
